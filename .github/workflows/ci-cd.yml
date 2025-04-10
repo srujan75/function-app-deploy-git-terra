@@ -1,0 +1,41 @@
+name: CI/CD - Function App
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Run PowerShell to provision infra
+        shell: pwsh
+        run: ./scripts/deploy.ps1
+
+      - name: Read Random Suffix
+        id: suffix
+        run: |
+          $suffix = Get-Content ./scripts/suffix.txt
+          echo "suffix=$suffix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        shell: pwsh
+
+      - name: Deploy Function Code
+        uses: Azure/functions-action@v1
+        with:
+          app-name: funcapp-${{ steps.suffix.outputs.suffix }}
+          package: './app'
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
